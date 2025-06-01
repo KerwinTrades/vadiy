@@ -87,8 +87,6 @@ export async function POST(request: NextRequest) {
     // 👤 Get user profile and determine service tier with caching
     console.log('👤 Fetching user profile and determining service tier...');
     
-    // Try to get cached tier first
-    serviceTier = await UsageTrackingService.getCachedUserTier(userId);
     
     if (!serviceTier) {
       // Fetch from Airtable if not cached
