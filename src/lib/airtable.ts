@@ -609,10 +609,10 @@ export class AirtableService {
    * Search opportunities by keyword/query for AI context - OPTIMIZED for efficiency
    */
   static async searchOpportunities(
-    query: string,
-    userId: string,
-    limit: number = 10
-  ): Promise<Opportunity[]> {
+  query: string,
+  userId: string,
+  limit: number = 10
+): Promise<any[]> {
     const result = await safeTableOperation(async () => {
       console.log(`🔍 Searching opportunities table (optimized)...`);
       console.log(`🔍 Query: "${query}"`);
