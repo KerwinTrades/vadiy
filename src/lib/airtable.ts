@@ -659,8 +659,8 @@ export class AirtableService {
 
     }, 'opportunities', 'search');
 
-    console.log(`🔍 Final searchOpportunities result: ${result.length} opportunities`);
-    return result;
+    console.log(`🔍 Final searchOpportunities result: ${result?.length || 0} opportunities`);
+return result || [];
   }
 
   /**
