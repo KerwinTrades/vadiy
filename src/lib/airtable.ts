@@ -583,7 +583,7 @@ export class AirtableService {
         sort: [{ field: 'Match_Score', direction: 'desc' }]
       }).all();
 
-      const resourceIds = matchRecords.map(record => record.get('Resource_ID'));
+      const resourceIds = matchRecords.map((record: any) => record.get('Resource_ID'));
       
       if (resourceIds.length === 0) return [];
 
