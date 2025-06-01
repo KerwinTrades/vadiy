@@ -508,7 +508,7 @@ export class AirtableService {
       );
 
       // Map the records to our format using ACTUAL field names from discovery
-      const opportunities: Opportunity[] = records.map(record => {
+      const opportunities: Opportunity[] = records.map((record: any) => {
         const fields = record.fields as any;
         
         return {
