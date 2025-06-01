@@ -584,14 +584,14 @@ function detectAirtableSearchIntent(message: string): {
   const getOpportunityDetails = wantsDetails;
   
 return {
-  searchRequired: Boolean(searchOpportunities || searchResources || getUserMatches || getOpportunityDetails),
-  searchOpportunities,
-  searchResources,
-  getUserMatches,
-  getOpportunityDetails,
-    opportunityId: getOpportunityDetails ? opportunityIdMatch?.[0] : undefined,
-    keywords: [...foundOpportunityKeywords, ...foundResourceKeywords, ...foundMatchKeywords]
-  };
+  searchRequired: !!(searchOpportunities || searchResources || getUserMatches || getOpportunityDetails),
+  searchOpportunities: !!searchOpportunities,
+  searchResources: !!searchResources, 
+  getUserMatches: !!getUserMatches,
+  getOpportunityDetails: !!getOpportunityDetails,
+  opportunityId: getOpportunityDetails ? opportunityIdMatch?.[0] : undefined,
+  keywords: [...foundOpportunityKeywords, ...foundResourceKeywords, ...foundMatchKeywords]
+};
 }
 
 /**
