@@ -788,56 +788,6 @@ export class AirtableService {
     });
   }
 
-  /**
-   * Get conversation messages for context (needed for memory system)
-   */
-  static async getConversationMessages(
-    conversationId: string, 
-    userId: string, 
-    limit: number = 10
-  ): Promise<any[]> {
-    return await safeTableOperation(async () => {
-      console.log(`💬 Getting conversation messages: ${conversationId}`);
-      
-      try {
-        // Try to get from conversations table
-        const conversationTables = ['Conversations', 'conversations', 'Messages', 'messages'];
-        
-        for (const tableName of conversationTables) {
-          try {
-            const records = await base(tableName).select({
-              filterByFormula: `AND({conversation_id} = "${conversationId}", {user_id} = "${userId}")`,
-              sort: [{ field: 'created_at', direction: 'desc' }],
-              maxRecords: limit
-            }).all();
-            
-            if (records.length > 0) {
-              console.log(`✅ Found ${records.length} messages in ${tableName}`);
-              
-              return records.map(record => {
-                const fields = record.fields as any;
-                return {
-                  role: fields.role || 'user',
-                  content: fields.content || fields.message || '',
-                  timestamp: fields.created_at || fields.timestamp
-                };
-              }).reverse(); // Reverse to get chronological order
-            }
-          } catch (tableError) {
-            console.log(`⚠️ ${tableName} table not accessible:`, tableError.message);
-            continue;
-          }
-        }
-        
-        console.log(`ℹ️ No conversation messages found for: ${conversationId}`);
-        return [];
-        
-      } catch (error) {
-        console.error('❌ Error getting conversation messages:', error);
-        return [];
-      }
-    });
-  }
 
   /**
    * Store conversation messages for future context
