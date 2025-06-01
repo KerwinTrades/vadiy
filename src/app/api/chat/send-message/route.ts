@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
       );
       
       // Cache the tier for future requests
-      await UsageTrackingService.cacheUserTier(userId, serviceTier);
+      // await UsageTrackingService.cacheUserTier(userId, serviceTier);
     }
     
     userTier = serviceTier.tier;
