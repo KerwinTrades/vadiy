@@ -455,7 +455,7 @@ export class AirtableService {
 
       // Decrypt encrypted messages if user is authorized
       if (conversation.isEncrypted) {
-        messages.forEach(message => {
+        messages.forEach((message: any) => {
           if (message.encryptedContent && message.role === 'user') {
             try {
               message.content = SecurityManager.decrypt(message.encryptedContent);
