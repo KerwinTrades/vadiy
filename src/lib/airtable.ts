@@ -495,7 +495,7 @@ export class AirtableService {
       }
 
       const records = await tables.opportunities.select({
-        filterByFormula,
+        filterByFormula: filterFormula,
         sort: [{ field: 'Deadline', direction: 'asc' }],
         maxRecords: limit
       }).all();
