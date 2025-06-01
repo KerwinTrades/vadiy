@@ -1,3 +1,5 @@
+// AirtableService - Database integration for VADIY
+// Last updated: 2025-02-01 - Fixed TypeScript error with Resource cost field
 import Airtable from 'airtable';
 import { SecurityManager, PIIProtector, AuditLogger } from './security';
 import type { 
@@ -698,7 +700,7 @@ return result || [];
           category: fields.Resource_Type || 'Support',
           type: fields.Resource_Type || 'Resource',
           availability: 'Available',
-          cost: 'Free',
+          cost: 'free',
           url: fields.Forms_Links || fields.url || '',
           contactInfo: {},
           eligibility: 'Veterans',
@@ -1059,7 +1061,7 @@ return result || [];
       url: record.get('URL'),
       contactInfo: record.get('Contact_Info') ? JSON.parse(record.get('Contact_Info')) : undefined,
       availability: record.get('Availability'),
-      cost: record.get('Cost'),
+      cost: 'free',
       tags: record.get('Tags') ? JSON.parse(record.get('Tags')) : []
     };
   }
