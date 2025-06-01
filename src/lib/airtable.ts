@@ -119,7 +119,7 @@ const initializeTables = async () => {
   console.log('🔍 Auto-detecting table names...');
 
   for (const [tableKey, variations] of Object.entries(TABLE_VARIATIONS)) {
-    const detectedName = await detectTableName(tableKey, variations);
+    const detectedName = await detectTableName(tableKey, variations.filter((v): v is string => v !== undefined));
     if (detectedName) {
       detectedTables[tableKey] = base(detectedName);
     } else {
