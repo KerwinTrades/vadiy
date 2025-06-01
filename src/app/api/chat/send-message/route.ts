@@ -870,14 +870,14 @@ function formatOpportunitiesContextConcise(opportunities: Opportunity[]): string
     return `**${index + 1}. ${opp.title}**
 📝 **Summary:** ${summary}${opp.description && opp.description.length > 120 ? '...' : ''}
 📅 **Deadline:** ${deadline}
-🔗 **Reference ID:** ${opp.opportunityID || opp.id}`;
+🔗 **Reference ID:** ${opp.id}`;
   }).join('\n\n');
 
   return `## 🎯 Available Opportunities in VADIY Database (${opportunities.length} found)
 
 ${formatted}
 
-💡 **Need more details?** Ask me about any specific opportunity using its Reference ID (e.g., "Tell me more about ${opportunities[0]?.opportunityID || opportunities[0]?.id}")`;
+💡 **Need more details?** Ask me about any specific opportunity using its Reference ID (e.g., "Tell me more about ${opportunities[0]?.id}")`;
 }
 
 /**
