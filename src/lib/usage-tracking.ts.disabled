@@ -1,0 +1,455 @@
+import { getRedisClient, REDIS_KEYS } from './redis';
+import { SubscriptionTier, SubscriptionService, UserServiceTier } from './subscription-tiers';
+import { SecurityManager } from './security';
+import { format, startOfDay, subDays } from 'date-fns';
+
+export interface UsageStats {
+  userId: string;
+  tier: SubscriptionTier;
+  date: string;
+  messagesUsed: number;
+  messagesLimit: number;
+  tokensUsed: number;
+  tokensLimit: number;
+  featuresUsed: string[];
+  rateLimitHits: number;
+}
+
+export interface DailyAnalytics {
+  date: string;
+  totalUsers: number;
+  messagesByTier: Record<SubscriptionTier, number>;
+  tokensByTier: Record<SubscriptionTier, number>;
+  conversionEvents: number;
+  featureUsage: Record<string, number>;
+}
+
+export class UsageTrackingService {
+  private static redis = getRedisClient();
+
+  /**
+   * Check if user can send a message (daily limit check)
+   */
+  static async checkDailyMessageLimit(userId: string, tier: SubscriptionTier): Promise<{
+    allowed: boolean;
+    current: number;
+    limit: number;
+    resetsAt: Date;
+  }> {
+    try {
+      const serviceTier = SubscriptionService.determineUserTier(tier);
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const key = REDIS_KEYS.DAILY_MESSAGES(userId, today);
+      
+      const current = await this.redis.get(key);
+      const currentCount = current ? parseInt(current) : 0;
+      const limit = serviceTier.limits.messagesPerDay;
+      
+      // Set expiration for midnight (24 hours from start of day)
+      const tomorrow = startOfDay(new Date());
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      console.log(`📊 Daily message check for ${tier} user ${userId}: ${currentCount}/${limit}`);
+      
+      return {
+        allowed: currentCount < limit,
+        current: currentCount,
+        limit: limit,
+        resetsAt: tomorrow
+      };
+    } catch (error) {
+      console.error('❌ Error checking daily message limit:', error);
+      // Fallback: allow the message if Redis is down
+      return {
+        allowed: true,
+        current: 0,
+        limit: 999999,
+        resetsAt: new Date()
+      };
+    }
+  }
+
+  /**
+   * Increment message count for user
+   */
+  static async incrementMessageCount(userId: string, tier: SubscriptionTier): Promise<number> {
+    try {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const key = REDIS_KEYS.DAILY_MESSAGES(userId, today);
+      
+      const count = await this.redis.incr(key);
+      
+      // Set expiration to end of day if this is the first message
+      if (count === 1) {
+        await this.redis.expireat(key, Math.floor(startOfDay(new Date()).getTime() / 1000) + 86400);
+      }
+      
+      // Also update analytics
+      await this.updateAnalytics('messages_by_tier', tier);
+      await this.updateAnalytics('total_messages', 'all');
+      
+      console.log(`📈 Incremented message count for ${tier} user ${userId}: ${count}`);
+      return count;
+    } catch (error) {
+      console.error('❌ Error incrementing message count:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Track token usage for user
+   */
+  static async trackTokenUsage(
+    userId: string, 
+    tier: SubscriptionTier, 
+    inputTokens: number, 
+    outputTokens: number,
+    model: string
+  ): Promise<void> {
+    try {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const key = REDIS_KEYS.DAILY_TOKENS(userId, today);
+      
+      const totalTokens = inputTokens + outputTokens;
+      
+      // Store detailed token usage as hash
+      await this.redis.hmset(key, {
+        input_tokens: (await this.redis.hget(key, 'input_tokens') || '0'),
+        output_tokens: (await this.redis.hget(key, 'output_tokens') || '0'),
+        total_tokens: (await this.redis.hget(key, 'total_tokens') || '0'),
+        model: model,
+        tier: tier,
+        last_updated: new Date().toISOString()
+      });
+      
+      await this.redis.hincrby(key, 'input_tokens', inputTokens);
+      await this.redis.hincrby(key, 'output_tokens', outputTokens);
+      await this.redis.hincrby(key, 'total_tokens', totalTokens);
+      
+      // Set expiration to end of day
+      await this.redis.expireat(key, Math.floor(startOfDay(new Date()).getTime() / 1000) + 86400);
+      
+      // Update analytics
+      await this.updateAnalytics('tokens_by_tier', tier, totalTokens);
+      await this.updateAnalytics(`tokens_by_model_${model}`, 'all', totalTokens);
+      
+      console.log(`💰 Tracked ${totalTokens} tokens for ${tier} user ${userId} (${model})`);
+    } catch (error) {
+      console.error('❌ Error tracking token usage:', error);
+    }
+  }
+
+  /**
+   * Rate limiting check (per endpoint, per time window)
+   */
+  static async checkRateLimit(
+    userId: string, 
+    endpoint: string, 
+    windowMs: number = 60000, // 1 minute default
+    maxRequests: number = 10
+  ): Promise<{
+    allowed: boolean;
+    current: number;
+    limit: number;
+    resetsAt: Date;
+  }> {
+    try {
+      const window = Math.floor(Date.now() / windowMs);
+      const key = REDIS_KEYS.RATE_LIMIT(userId, endpoint, window.toString());
+      
+      const current = await this.redis.get(key);
+      const currentCount = current ? parseInt(current) : 0;
+      
+      if (currentCount >= maxRequests) {
+        // Track rate limit hit
+        await this.updateAnalytics('rate_limit_hits', endpoint);
+        
+        return {
+          allowed: false,
+          current: currentCount,
+          limit: maxRequests,
+          resetsAt: new Date((window + 1) * windowMs)
+        };
+      }
+      
+      // Increment and set expiration
+      await this.redis.incr(key);
+      await this.redis.expire(key, Math.ceil(windowMs / 1000));
+      
+      return {
+        allowed: true,
+        current: currentCount + 1,
+        limit: maxRequests,
+        resetsAt: new Date((window + 1) * windowMs)
+      };
+    } catch (error) {
+      console.error('❌ Error checking rate limit:', error);
+      // Fallback: allow request if Redis is down
+      return {
+        allowed: true,
+        current: 0,
+        limit: maxRequests,
+        resetsAt: new Date()
+      };
+    }
+  }
+
+  /**
+   * Track feature usage
+   */
+  static async trackFeatureUsage(userId: string, feature: string, tier: SubscriptionTier): Promise<void> {
+    try {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const key = REDIS_KEYS.FEATURE_USAGE(userId, feature, today);
+      
+      await this.redis.incr(key);
+      await this.redis.expireat(key, Math.floor(startOfDay(new Date()).getTime() / 1000) + 86400);
+      
+      // Update analytics
+      await this.updateAnalytics('feature_usage', feature);
+      await this.updateAnalytics(`feature_usage_${tier}`, feature);
+      
+      console.log(`🎯 Tracked feature usage: ${feature} for ${tier} user ${userId}`);
+    } catch (error) {
+      console.error('❌ Error tracking feature usage:', error);
+    }
+  }
+
+  /**
+   * Get user usage stats
+   */
+  static async getUserUsageStats(userId: string, tier: SubscriptionTier): Promise<UsageStats> {
+    try {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const serviceTier = SubscriptionService.determineUserTier(tier);
+      
+      // Get message usage
+      const messageKey = REDIS_KEYS.DAILY_MESSAGES(userId, today);
+      const messagesUsed = parseInt(await this.redis.get(messageKey) || '0');
+      
+      // Get token usage
+      const tokenKey = REDIS_KEYS.DAILY_TOKENS(userId, today);
+      const tokenData = await this.redis.hgetall(tokenKey);
+      const tokensUsed = parseInt(tokenData.total_tokens || '0');
+      
+      // Get features used today
+      const pattern = REDIS_KEYS.FEATURE_USAGE(userId, '*', today);
+      const featureKeys = await this.redis.keys(pattern);
+      const featuresUsed = featureKeys.map(key => {
+        const parts = key.split(':');
+        return parts[3]; // Extract feature name
+      });
+      
+      return {
+        userId,
+        tier,
+        date: today,
+        messagesUsed,
+        messagesLimit: serviceTier.limits.messagesPerDay,
+        tokensUsed,
+        tokensLimit: serviceTier.limits.maxTokens * messagesUsed, // Estimate
+        featuresUsed,
+        rateLimitHits: 0 // TODO: Implement rate limit hit tracking
+      };
+    } catch (error) {
+      console.error('❌ Error getting user usage stats:', error);
+      const serviceTier = SubscriptionService.determineUserTier(tier);
+      return {
+        userId,
+        tier,
+        date: format(new Date(), 'yyyy-MM-dd'),
+        messagesUsed: 0,
+        messagesLimit: serviceTier.limits.messagesPerDay,
+        tokensUsed: 0,
+        tokensLimit: serviceTier.limits.maxTokens,
+        featuresUsed: [],
+        rateLimitHits: 0
+      };
+    }
+  }
+
+  /**
+   * Get analytics for date range
+   */
+  static async getAnalytics(startDate: Date, endDate: Date): Promise<DailyAnalytics[]> {
+    try {
+      const analytics: DailyAnalytics[] = [];
+      const current = new Date(startDate);
+      
+      while (current <= endDate) {
+        const dateStr = format(current, 'yyyy-MM-dd');
+        const dayAnalytics = await this.getDayAnalytics(dateStr);
+        analytics.push(dayAnalytics);
+        current.setDate(current.getDate() + 1);
+      }
+      
+      return analytics;
+    } catch (error) {
+      console.error('❌ Error getting analytics:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get analytics for a specific day
+   */
+  private static async getDayAnalytics(date: string): Promise<DailyAnalytics> {
+    try {
+      const pattern = REDIS_KEYS.ANALYTICS('*', date);
+      const keys = await this.redis.keys(pattern);
+      
+      const analytics: DailyAnalytics = {
+        date,
+        totalUsers: 0,
+        messagesByTier: {
+          [SubscriptionTier.FREE]: 0,
+          [SubscriptionTier.PREMIUM]: 0,
+          [SubscriptionTier.FOUNDER]: 0
+        },
+        tokensByTier: {
+          [SubscriptionTier.FREE]: 0,
+          [SubscriptionTier.PREMIUM]: 0,
+          [SubscriptionTier.FOUNDER]: 0
+        },
+        conversionEvents: 0,
+        featureUsage: {}
+      };
+      
+      for (const key of keys) {
+        const value = parseInt(await this.redis.get(key) || '0');
+        const parts = key.split(':');
+        const metric = parts[1];
+        
+        if (metric.startsWith('messages_by_tier_')) {
+          const tier = metric.replace('messages_by_tier_', '') as SubscriptionTier;
+          analytics.messagesByTier[tier] = value;
+        } else if (metric.startsWith('tokens_by_tier_')) {
+          const tier = metric.replace('tokens_by_tier_', '') as SubscriptionTier;
+          analytics.tokensByTier[tier] = value;
+        } else if (metric.startsWith('feature_usage_')) {
+          const feature = metric.replace('feature_usage_', '');
+          analytics.featureUsage[feature] = value;
+        } else if (metric === 'total_users') {
+          analytics.totalUsers = value;
+        } else if (metric === 'conversion_events') {
+          analytics.conversionEvents = value;
+        }
+      }
+      
+      return analytics;
+    } catch (error) {
+      console.error('❌ Error getting day analytics:', error);
+      return {
+        date,
+        totalUsers: 0,
+        messagesByTier: {
+          [SubscriptionTier.FREE]: 0,
+          [SubscriptionTier.PREMIUM]: 0,
+          [SubscriptionTier.FOUNDER]: 0
+        },
+        tokensByTier: {
+          [SubscriptionTier.FREE]: 0,
+          [SubscriptionTier.PREMIUM]: 0,
+          [SubscriptionTier.FOUNDER]: 0
+        },
+        conversionEvents: 0,
+        featureUsage: {}
+      };
+    }
+  }
+
+  /**
+   * Update analytics counters
+   */
+  private static async updateAnalytics(metric: string, value: string, increment: number = 1): Promise<void> {
+    try {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const key = REDIS_KEYS.ANALYTICS(`${metric}_${value}`, today);
+      
+      await this.redis.incrby(key, increment);
+      await this.redis.expireat(key, Math.floor(startOfDay(new Date()).getTime() / 1000) + (86400 * 30)); // Keep for 30 days
+    } catch (error) {
+      console.error('❌ Error updating analytics:', error);
+    }
+  }
+
+  /**
+   * Cache user tier information
+   */
+  static async cacheUserTier(userId: string, tierData: UserServiceTier): Promise<void> {
+    try {
+      const key = REDIS_KEYS.USER_TIER_CACHE(userId);
+      await this.redis.setex(key, 3600, JSON.stringify(tierData)); // Cache for 1 hour
+      console.log(`💾 Cached tier data for user ${userId}: ${tierData.tier}`);
+    } catch (error) {
+      console.error('❌ Error caching user tier:', error);
+    }
+  }
+
+  /**
+   * Get cached user tier information
+   */
+  static async getCachedUserTier(userId: string): Promise<UserServiceTier | null> {
+    try {
+      const key = REDIS_KEYS.USER_TIER_CACHE(userId);
+      const cached = await this.redis.get(key);
+      
+      if (cached) {
+        console.log(`💾 Retrieved cached tier for user ${userId}`);
+        return JSON.parse(cached);
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('❌ Error getting cached user tier:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Track conversion event (free to premium)
+   */
+  static async trackConversion(userId: string, fromTier: SubscriptionTier, toTier: SubscriptionTier): Promise<void> {
+    try {
+      await this.updateAnalytics('conversion_events', `${fromTier}_to_${toTier}`);
+      await this.updateAnalytics('conversion_events', 'total');
+      
+      console.log(`🎉 Tracked conversion: ${userId} from ${fromTier} to ${toTier}`);
+    } catch (error) {
+      console.error('❌ Error tracking conversion:', error);
+    }
+  }
+
+  /**
+   * Clean up old data (run daily via cron)
+   */
+  static async cleanupOldData(daysToKeep: number = 30): Promise<void> {
+    try {
+      const cutoffDate = subDays(new Date(), daysToKeep);
+      const cutoffStr = format(cutoffDate, 'yyyy-MM-dd');
+      
+      // Clean up old daily data
+      const patterns = [
+        `user:*:messages:*`,
+        `user:*:tokens:*`,
+        `user:*:feature:*:*`,
+        `analytics:*:*`
+      ];
+      
+      for (const pattern of patterns) {
+        const keys = await this.redis.keys(pattern);
+        const oldKeys = keys.filter(key => {
+          const datePart = key.split(':').pop();
+          return datePart && datePart < cutoffStr;
+        });
+        
+        if (oldKeys.length > 0) {
+          await this.redis.del(...oldKeys);
+          console.log(`🧹 Cleaned up ${oldKeys.length} old keys for pattern ${pattern}`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error cleaning up old data:', error);
+    }
+  }
+} 

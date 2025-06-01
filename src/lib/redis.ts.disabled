@@ -1,0 +1,85 @@
+import Redis from 'ioredis';
+
+// Redis configuration
+const REDIS_CONFIG = {
+  host: process.env.REDIS_HOST || 'localhost',
+  port: parseInt(process.env.REDIS_PORT || '6379'),
+  password: process.env.REDIS_PASSWORD,
+  retryDelayOnFailover: 100,
+  enableReadyCheck: false,
+  maxRetriesPerRequest: null,
+  lazyConnect: true,
+  // For development, you can use a local Redis or Redis Cloud
+  // For production, use Redis Cloud, AWS ElastiCache, or similar
+};
+
+// Create Redis instance
+let redis: Redis | null = null;
+
+export const getRedisClient = (): Redis => {
+  if (!redis) {
+    redis = new Redis(REDIS_CONFIG);
+    
+    redis.on('connect', () => {
+      console.log('✅ Connected to Redis');
+    });
+    
+    redis.on('error', (err) => {
+      console.error('❌ Redis connection error:', err);
+    });
+    
+    redis.on('close', () => {
+      console.log('🔌 Redis connection closed');
+    });
+  }
+  
+  return redis;
+};
+
+// Test Redis connection
+export const testRedisConnection = async (): Promise<boolean> => {
+  try {
+    const client = getRedisClient();
+    await client.ping();
+    console.log('✅ Redis connection test successful');
+    return true;
+  } catch (error) {
+    console.error('❌ Redis connection test failed:', error);
+    return false;
+  }
+};
+
+// Graceful shutdown
+export const closeRedisConnection = async (): Promise<void> => {
+  if (redis) {
+    await redis.disconnect();
+    redis = null;
+    console.log('🔌 Redis connection closed gracefully');
+  }
+};
+
+// Redis key patterns for usage tracking
+export const REDIS_KEYS = {
+  // Daily message limits: user:{userId}:messages:{date}
+  DAILY_MESSAGES: (userId: string, date: string) => `user:${userId}:messages:${date}`,
+  
+  // Token usage tracking: user:{userId}:tokens:{date}
+  DAILY_TOKENS: (userId: string, date: string) => `user:${userId}:tokens:${date}`,
+  
+  // Rate limiting: ratelimit:{userId}:{endpoint}:{window}
+  RATE_LIMIT: (userId: string, endpoint: string, window: string) => `ratelimit:${userId}:${endpoint}:${window}`,
+  
+  // User session tracking: session:{sessionId}
+  USER_SESSION: (sessionId: string) => `session:${sessionId}`,
+  
+  // Analytics aggregation: analytics:{metric}:{date}
+  ANALYTICS: (metric: string, date: string) => `analytics:${metric}:${date}`,
+  
+  // User tier cache: user:{userId}:tier
+  USER_TIER_CACHE: (userId: string) => `user:${userId}:tier`,
+  
+  // Feature usage: user:{userId}:feature:{feature}:{date}
+  FEATURE_USAGE: (userId: string, feature: string, date: string) => `user:${userId}:feature:${feature}:${date}`
+} as const;
+
+export default redis; 

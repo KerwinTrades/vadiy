@@ -1,0 +1,324 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { UsageTrackingService } from './usage-tracking';
+import { SubscriptionTier } from './subscription-tiers';
+import { SecurityManager } from './security';
+
+export interface RateLimitConfig {
+  windowMs: number;
+  maxRequests: number;
+  skipSuccessfulRequests?: boolean;
+  keyGenerator?: (request: NextRequest) => string;
+  onLimitReached?: (request: NextRequest, userId: string) => void;
+}
+
+export interface TieredRateLimitConfig {
+  [SubscriptionTier.FREE]: RateLimitConfig;
+  [SubscriptionTier.PREMIUM]: RateLimitConfig;
+  [SubscriptionTier.FOUNDER]: RateLimitConfig;
+}
+
+// Default rate limit configurations per tier
+export const DEFAULT_RATE_LIMITS: TieredRateLimitConfig = {
+  [SubscriptionTier.FREE]: {
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: 5, // 5 requests per minute
+    skipSuccessfulRequests: false
+  },
+  [SubscriptionTier.PREMIUM]: {
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: 30, // 30 requests per minute
+    skipSuccessfulRequests: false
+  },
+  [SubscriptionTier.FOUNDER]: {
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: 60, // 60 requests per minute
+    skipSuccessfulRequests: false
+  }
+};
+
+// Endpoint-specific rate limits
+export const ENDPOINT_RATE_LIMITS: Record<string, TieredRateLimitConfig> = {
+  '/api/chat/send-message': {
+    [SubscriptionTier.FREE]: {
+      windowMs: 60 * 1000,
+      maxRequests: 3, // 3 messages per minute for free users
+      skipSuccessfulRequests: false
+    },
+    [SubscriptionTier.PREMIUM]: {
+      windowMs: 60 * 1000,
+      maxRequests: 20, // 20 messages per minute for premium
+      skipSuccessfulRequests: false
+    },
+    [SubscriptionTier.FOUNDER]: {
+      windowMs: 60 * 1000,
+      maxRequests: 40, // 40 messages per minute for founders
+      skipSuccessfulRequests: false
+    }
+  },
+  '/api/user/tier': {
+    [SubscriptionTier.FREE]: {
+      windowMs: 60 * 1000,
+      maxRequests: 10,
+      skipSuccessfulRequests: true // Don't count successful tier checks
+    },
+    [SubscriptionTier.PREMIUM]: {
+      windowMs: 60 * 1000,
+      maxRequests: 30,
+      skipSuccessfulRequests: true
+    },
+    [SubscriptionTier.FOUNDER]: {
+      windowMs: 60 * 1000,
+      maxRequests: 60,
+      skipSuccessfulRequests: true
+    }
+  }
+};
+
+export class RateLimitingService {
+  /**
+   * Apply rate limiting based on user tier and endpoint
+   */
+  static async applyRateLimit(
+    request: NextRequest,
+    userId: string,
+    tier: SubscriptionTier,
+    endpoint?: string
+  ): Promise<{
+    allowed: boolean;
+    response?: NextResponse;
+    current: number;
+    limit: number;
+    resetsAt: Date;
+  }> {
+    try {
+      const pathname = endpoint || request.nextUrl.pathname;
+      
+      // Get rate limit config for this endpoint and tier
+      const config = this.getRateLimitConfig(pathname, tier);
+      
+      // Generate rate limit key
+      const key = config.keyGenerator ? config.keyGenerator(request) : userId;
+      
+      // Check rate limit
+      const result = await UsageTrackingService.checkRateLimit(
+        key,
+        pathname,
+        config.windowMs,
+        config.maxRequests
+      );
+      
+      if (!result.allowed) {
+        console.warn(`🚫 Rate limit exceeded for ${tier} user ${userId} on ${pathname}`);
+        
+        // Call custom handler if provided
+        if (config.onLimitReached) {
+          config.onLimitReached(request, userId);
+        }
+        
+        // Return rate limit response
+        const response = NextResponse.json({
+          success: false,
+          error: {
+            code: 'RATE_LIMIT_EXCEEDED',
+            message: 'Too many requests. Please wait before trying again.',
+            details: {
+              limit: result.limit,
+              current: result.current,
+              resetsAt: result.resetsAt.toISOString(),
+              tier: tier
+            },
+            timestamp: new Date()
+          }
+        }, { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': result.limit.toString(),
+            'X-RateLimit-Remaining': Math.max(0, result.limit - result.current).toString(),
+            'X-RateLimit-Reset': Math.floor(result.resetsAt.getTime() / 1000).toString(),
+            'Retry-After': Math.ceil((result.resetsAt.getTime() - Date.now()) / 1000).toString()
+          }
+        });
+        
+        return {
+          allowed: false,
+          response,
+          current: result.current,
+          limit: result.limit,
+          resetsAt: result.resetsAt
+        };
+      }
+      
+      console.log(`✅ Rate limit check passed for ${tier} user ${userId}: ${result.current}/${result.limit}`);
+      
+      return {
+        allowed: true,
+        current: result.current,
+        limit: result.limit,
+        resetsAt: result.resetsAt
+      };
+    } catch (error) {
+      console.error('❌ Error applying rate limit:', error);
+      // Allow request if rate limiting fails
+      return {
+        allowed: true,
+        current: 0,
+        limit: 999999,
+        resetsAt: new Date()
+      };
+    }
+  }
+
+  /**
+   * Get rate limit configuration for endpoint and tier
+   */
+  private static getRateLimitConfig(endpoint: string, tier: SubscriptionTier): RateLimitConfig {
+    // Check for endpoint-specific config first
+    if (ENDPOINT_RATE_LIMITS[endpoint]) {
+      return ENDPOINT_RATE_LIMITS[endpoint][tier];
+    }
+    
+    // Fall back to default config
+    return DEFAULT_RATE_LIMITS[tier];
+  }
+
+  /**
+   * Add rate limit headers to response
+   */
+  static addRateLimitHeaders(
+    response: NextResponse,
+    current: number,
+    limit: number,
+    resetsAt: Date
+  ): NextResponse {
+    response.headers.set('X-RateLimit-Limit', limit.toString());
+    response.headers.set('X-RateLimit-Remaining', Math.max(0, limit - current).toString());
+    response.headers.set('X-RateLimit-Reset', Math.floor(resetsAt.getTime() / 1000).toString());
+    
+    return response;
+  }
+
+  /**
+   * Create a rate limit middleware for specific endpoints
+   */
+  static createMiddleware(
+    config?: Partial<TieredRateLimitConfig>
+  ) {
+    return async (
+      request: NextRequest,
+      userId: string,
+      tier: SubscriptionTier
+    ): Promise<NextResponse | null> => {
+      const result = await this.applyRateLimit(request, userId, tier);
+      
+      if (!result.allowed && result.response) {
+        return result.response;
+      }
+      
+      return null; // Continue processing
+    };
+  }
+
+  /**
+   * Global rate limiting check for any endpoint
+   */
+  static async checkGlobalRateLimit(
+    request: NextRequest,
+    userId: string,
+    tier: SubscriptionTier
+  ): Promise<boolean> {
+    try {
+      const globalLimits = {
+        [SubscriptionTier.FREE]: { windowMs: 3600000, maxRequests: 100 }, // 100 per hour
+        [SubscriptionTier.PREMIUM]: { windowMs: 3600000, maxRequests: 1000 }, // 1000 per hour
+        [SubscriptionTier.FOUNDER]: { windowMs: 3600000, maxRequests: 2000 } // 2000 per hour
+      };
+      
+      const config = globalLimits[tier];
+      const result = await UsageTrackingService.checkRateLimit(
+        userId,
+        'global',
+        config.windowMs,
+        config.maxRequests
+      );
+      
+      return result.allowed;
+    } catch (error) {
+      console.error('❌ Error checking global rate limit:', error);
+      return true; // Allow on error
+    }
+  }
+
+  /**
+   * Create custom rate limit for specific features
+   */
+  static async checkFeatureRateLimit(
+    userId: string,
+    feature: string,
+    tier: SubscriptionTier,
+    customLimits?: { windowMs: number; maxRequests: number }
+  ): Promise<boolean> {
+    try {
+      const defaultLimits = {
+        [SubscriptionTier.FREE]: { windowMs: 3600000, maxRequests: 10 }, // 10 feature uses per hour
+        [SubscriptionTier.PREMIUM]: { windowMs: 3600000, maxRequests: 100 }, // 100 per hour
+        [SubscriptionTier.FOUNDER]: { windowMs: 3600000, maxRequests: 200 } // 200 per hour
+      };
+      
+      const limits = customLimits || defaultLimits[tier];
+      const result = await UsageTrackingService.checkRateLimit(
+        userId,
+        `feature:${feature}`,
+        limits.windowMs,
+        limits.maxRequests
+      );
+      
+      return result.allowed;
+    } catch (error) {
+      console.error('❌ Error checking feature rate limit:', error);
+      return true; // Allow on error
+    }
+  }
+
+  /**
+   * Get rate limit status for user
+   */
+  static async getRateLimitStatus(
+    userId: string,
+    tier: SubscriptionTier,
+    endpoint?: string
+  ): Promise<{
+    endpoint: string;
+    current: number;
+    limit: number;
+    resetsAt: Date;
+    remaining: number;
+  }> {
+    try {
+      const endpointPath = endpoint || 'default';
+      const config = this.getRateLimitConfig(endpointPath, tier);
+      
+      // This is a read-only check, so we manually calculate without incrementing
+      const window = Math.floor(Date.now() / config.windowMs);
+      const key = `ratelimit:${userId}:${endpointPath}:${window}`;
+      
+      // We would need to access Redis directly here for a read-only check
+      // For now, return default values
+      return {
+        endpoint: endpointPath,
+        current: 0,
+        limit: config.maxRequests,
+        resetsAt: new Date((window + 1) * config.windowMs),
+        remaining: config.maxRequests
+      };
+    } catch (error) {
+      console.error('❌ Error getting rate limit status:', error);
+      return {
+        endpoint: endpoint || 'default',
+        current: 0,
+        limit: 999999,
+        resetsAt: new Date(),
+        remaining: 999999
+      };
+    }
+  }
+} 
