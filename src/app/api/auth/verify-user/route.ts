@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     // Sanitize inputs
     const sanitizedEmail = InputValidator.sanitizeInput(email);
-    const clientIP = request.ip || 'unknown';
+    const clientIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
 
     // Rate limiting
     const rateLimit = RateLimiter.checkRateLimit(
