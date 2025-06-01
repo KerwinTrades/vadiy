@@ -628,7 +628,7 @@ export class AirtableService {
       console.log(`📊 Raw records found: ${records.length}`);
 
       // Map to LIGHTWEIGHT format - only essential fields for AI
-      const opportunities: Opportunity[] = records.map(record => {
+      const opportunities = records.map((record: any) => {
         const fields = record.fields as any;
         
         return {
