@@ -698,7 +698,7 @@ return result || [];
           category: fields.Resource_Type || 'Support',
           type: fields.Resource_Type || 'Resource',
           availability: 'Available',
-          cost: 'Free',
+          cost: 'free',
           url: fields.Forms_Links || fields.url || '',
           contactInfo: {},
           eligibility: 'Veterans',
