@@ -451,7 +451,7 @@ export class AirtableService {
         maxRecords: limit
       }).all();
 
-      const messages = records.map(record => this.mapMessageRecord(record));
+      const messages = records.map((record: any) => this.mapMessageRecord(record));
 
       // Decrypt encrypted messages if user is authorized
       if (conversation.isEncrypted) {
