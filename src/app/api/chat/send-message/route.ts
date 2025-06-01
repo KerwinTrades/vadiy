@@ -583,12 +583,12 @@ function detectAirtableSearchIntent(message: string): {
   const getUserMatches = foundMatchKeywords.length > 0;
   const getOpportunityDetails = wantsDetails;
   
-  return {
-    searchRequired: searchOpportunities || searchResources || getUserMatches || getOpportunityDetails,
-    searchOpportunities,
-    searchResources,
-    getUserMatches,
-    getOpportunityDetails,
+return {
+  searchRequired: Boolean(searchOpportunities || searchResources || getUserMatches || getOpportunityDetails),
+  searchOpportunities,
+  searchResources,
+  getUserMatches,
+  getOpportunityDetails,
     opportunityId: getOpportunityDetails ? opportunityIdMatch?.[0] : undefined,
     keywords: [...foundOpportunityKeywords, ...foundResourceKeywords, ...foundMatchKeywords]
   };
