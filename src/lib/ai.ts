@@ -4,6 +4,11 @@ import axios from 'axios';
 import { PIIProtector, SecurityManager } from './security';
 import type { Message, MessageMetadata } from '@/types';
 
+// Type guard function for AI model validation
+function isValidAiModel(model: string): model is "openai" | "claude" | "perplexity" {
+  return ["openai", "claude", "perplexity"].includes(model);
+}
+
 // AI Provider configurations
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -93,7 +98,7 @@ Remember: You're serving those who served our country. Treat every interaction w
 
         if (response.success) {
           response.metadata = {
-            aiModel: model,
+            aiModel: isValidAiModel(model) ? model : undefined,
             responseTime: Date.now() - startTime,
             intent,
             confidence: this.calculateConfidence(response.content),
