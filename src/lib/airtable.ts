@@ -336,7 +336,7 @@ export class AirtableService {
         sort: [{ field: 'Last_Message_At', direction: 'desc' }]
       }).all();
 
-      return records.map(record => this.mapConversationRecord(record));
+     return records.map((record: any) => this.mapConversationRecord(record));
     }, 'Conversations', 'getUserConversations');
 
     return result || [];
