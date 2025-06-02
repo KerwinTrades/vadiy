@@ -107,12 +107,12 @@ export class SubscriptionService {
   static getFeatureUpsellMessage(requestedFeature: string, tier: SubscriptionTier): string {
     if (tier !== SubscriptionTier.FREE) return '';
     
-    const upsellMessages = {
-      opportunities: `\n\n💼 **Looking for Opportunities?** \nUpgrade to Premium to access:\n• Personalized job matching from VADIY's database\n• Government contract opportunities\n• Real-time opportunity alerts\n• Enhanced AI responses with GPT-4o-mini\n\n💎 [Upgrade to Premium →](https://vadiy.com/upgrade)`,
+    const upsellMessages: { [key: string]: string } = {
+      opportunities: `\n\n🚀 **Discover More Funding Opportunities!** \nUpgrade to Premium for:\n• Unlimited opportunity searches\n• Personalized grant matches\n• Early access to new funding\n\n💎 [Upgrade to Premium →](https://vadiy.com/upgrade)`,
       
-      matches: `\n\n🎯 **Want Personalized Matches?** \nPremium members get:\n• Custom opportunity recommendations\n• Profile-based job matching\n• Priority application support\n• Advanced AI with GPT-4o-mini\n\n💎 [Upgrade to Premium →](https://vadiy.com/upgrade)`,
+      matches: `\n\n🚀 **Want Better Match Results?** \nUpgrade to Premium for:\n• AI-powered matching algorithm\n• Personalized funding recommendations\n• Early notification of matching grants\n\n💎 [Upgrade to Premium →](https://vadiy.com/upgrade)`,
       
-      webSearch: `\n\n🌐 **Need Real-Time Information?** \nPremium features include:\n• Live veteran benefits updates\n• Current VA policy changes\n• Real-time opportunity alerts\n• Smart web research with GPT-4o-mini\n\n💎 [Upgrade to Premium →](https://vadiy.com/upgrade)`,
+      webSearch: `\n\n🚀 **Need Better Research?** \nUpgrade to Premium for:\n• Unlimited web searches\n• AI-powered funding research\n• Custom research requests\n\n💎 [Upgrade to Premium →](https://vadiy.com/upgrade)`,
       
       advanced: `\n\n🚀 **Want Advanced AI Features?** \nUpgrade for:\n• GPT-4o-mini powered responses (15x more efficient than GPT-4)\n• Unlimited conversation memory\n• Priority support\n• Advanced research capabilities\n\n💎 [Upgrade to Premium →](https://vadiy.com/upgrade)`
     };

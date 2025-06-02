@@ -46,51 +46,82 @@ const TABLE_IDS = {
   users: 'tbl3ZNNQMUZilr08V', // Direct table ID for users from user input
 } as const;
 
-// Table name detection and fallbacks
+// Table name detection and fallbacks - Updated to match exact Airtable schema
 const TABLE_VARIATIONS = {
   users: [
     process.env.AIRTABLE_USERS_TABLE,
-    'User Profiles', 'Users', 'Veterans', 'Veteran Profiles'
+    'User Profiles', // Exact match from user schema
+    'Users', 
+    'Veterans', 
+    'Veteran Profiles'
   ].filter(Boolean),
   opportunities: [
     process.env.AIRTABLE_OPPORTUNITIES_TABLE,
-    'Opportunities', 'Jobs', 'Employment', 'Job Opportunities', 'Career Opportunities'
+    'Opportunities', // Exact match from user schema
+    'Jobs', 
+    'Employment', 
+    'Job Opportunities', 
+    'Career Opportunities'
   ].filter(Boolean),
   resources: [
     process.env.AIRTABLE_RESOURCES_TABLE,
-    'Resources', 'Benefits', 'Services', 'Support Resources', 'Veteran Resources'
+    'Resources', // Exact match from user schema
+    'Benefits', 
+    'Services', 
+    'Support Resources', 
+    'Veteran Resources'
   ].filter(Boolean),
   matches: [
     process.env.AIRTABLE_MATCHES_TABLE,
-    'Matches', 'User Matches', 'Opportunity Matches', 'Job Matches'
+    'Matches', // Exact match from user schema
+    'User Matches', 
+    'Opportunity Matches', 
+    'Job Matches'
   ].filter(Boolean),
   matchesResources: [
     process.env.AIRTABLE_MATCHES_RESOURCES_TABLE,
-    'MatchesResources', 'Resource Matches', 'User Resource Matches', 'Matches_Resources'
+    'MatchesResources', // Exact match from user schema
+    'Resource Matches', 
+    'User Resource Matches', 
+    'Matches_Resources'
   ].filter(Boolean),
   conversations: [
     process.env.AIRTABLE_CONVERSATIONS_TABLE,
-    'Conversations', 'Chat Conversations', 'User Conversations'
+    'Conversations', // Exact match from user schema
+    'Chat Conversations', 
+    'User Conversations'
   ].filter(Boolean),
   messages: [
     process.env.AIRTABLE_MESSAGES_TABLE,
-    'Messages', 'Chat Messages', 'Conversation Messages'
+    'Messages', // Exact match from user schema
+    'Chat Messages', 
+    'Conversation Messages'
   ].filter(Boolean),
-  analytics: [
-    process.env.AIRTABLE_ANALYTICS_TABLE,
-    'Chat_Analytics', 'Analytics', 'Chat Analytics', 'Usage Analytics'
+  chatAnalytics: [
+    process.env.AIRTABLE_CHAT_ANALYTICS_TABLE,
+    'Chat_Analytics', // Exact match from user schema
+    'Analytics', 
+    'Chat Analytics', 
+    'Usage Analytics'
   ].filter(Boolean),
   documents: [
     process.env.AIRTABLE_DOCUMENTS_TABLE,
-    'Generated_Documents', 'Documents', 'Generated Documents', 'User Documents'
+    'Generated_Documents', // Exact match from user schema
+    'Documents', 
+    'Generated Documents', 
+    'User Documents'
   ].filter(Boolean),
-  sessions: [
-    process.env.AIRTABLE_SESSIONS_TABLE,
-    'User_Sessions', 'Sessions', 'User Sessions', 'Chat Sessions'
+  veteranNews: [
+    process.env.AIRTABLE_VETERAN_NEWS_TABLE,
+    'Veteran News' // Exact match from user schema
   ].filter(Boolean),
-  feedback: [
-    process.env.AIRTABLE_FEEDBACK_TABLE,
-    'User_Feedback', 'Feedback', 'User Feedback', 'Chat Feedback'
+  chatTranscripts: [
+    process.env.AIRTABLE_CHAT_TRANSCRIPTS_TABLE,
+    'ChatTranscripts' // Exact match from user schema
+  ].filter(Boolean),
+  veteranChat: [
+    process.env.AIRTABLE_VETERAN_CHAT_TABLE,
+    'VeteranChat' // Exact match from user schema
   ].filter(Boolean)
 };
 
@@ -282,7 +313,7 @@ export class AirtableService {
         filterByFormula: `{Session_ID} = '${sessionId}'`,
         maxRecords: 1
       }).firstPage();
-
+      
       if (records.length > 0) {
         await tables.sessions.update(records[0].id, {
           'Last_Activity': new Date().toISOString()
@@ -510,30 +541,8 @@ export class AirtableService {
         'read'
       );
 
-      // Map the records to our format using ACTUAL field names from discovery
-      const opportunities: Opportunity[] = records.map((record: any) => {
-        const fields = record.fields as any;
-        
-        return {
-          id: record.id,
-          title: fields.title || fields.Title || 'Untitled',
-          description: fields.description || fields.aisummary || 'No description available',
-          type: 'Government Contract', // Default type since no type field exists
-          status: 'Available', // Default status since no status field exists
-          deadline: fields.Date || fields.deadline || null,
-          category: 'Government Opportunity',
-          applicationUrl: null, // No application URL field found
-          agency: null,
-          requirements: null,
-          benefits: null,
-          location: null,
-          salaryRange: null,
-          experienceLevel: null,
-          postedDate: fields.Date || null,
-          tags: null,
-          opportunityID: fields.opportunityID || null
-        };
-      });
+      // Map the records to our format using mapOpportunityRecord for consistency
+      const opportunities: Opportunity[] = records.map((record: any) => this.mapOpportunityRecord(record));
 
       console.log(`✅ Returning ${opportunities.length} mapped opportunities`);
       return opportunities;
@@ -690,9 +699,18 @@ return result || [];
         console.log(`📋 First resource record fields:`, Object.keys(records[0].fields));
       }
 
-      // Map the records to our format using ACTUAL field names
-      const resources: Resource[] = records.map(record => {
+      // Map the records to our format using ACTUAL field names and ensure type compliance
+      const resources = records.map(record => {
         const fields = record.fields as any;
+        
+        // Helper function to normalize cost values to match our type
+        const normalizeCost = (cost: any): 'free' | 'paid' | 'sliding-scale' => {
+          if (!cost) return 'free';
+          const costStr = String(cost).toLowerCase();
+          if (costStr.includes('free')) return 'free';
+          if (costStr.includes('sliding') || costStr.includes('scale')) return 'sliding-scale';
+          return 'paid';
+        };
         
         return {
           id: record.id,
@@ -701,7 +719,7 @@ return result || [];
           category: fields.Resource_Type || 'Support',
           type: fields.Resource_Type || 'Resource',
           availability: 'Available',
-          cost: 'free',
+          cost: normalizeCost(fields.cost || 'free'),
           url: fields.Forms_Links || fields.url || '',
           contactInfo: {},
           eligibility: 'Veterans',
@@ -716,7 +734,7 @@ return result || [];
       });
 
       console.log(`✅ Returning ${resources.length} mapped resources`);
-      return resources;
+      return resources as Resource[];
 
     }, 'Resources', 'search');
 
@@ -784,7 +802,7 @@ return result || [];
               
               return userProfile;
             }
-          } catch (tableError) {
+          } catch (tableError: any) {
             console.log(`⚠️ ${tableName} table not accessible:`, tableError.message);
             continue;
           }
@@ -797,7 +815,7 @@ return result || [];
         console.error('❌ Error getting user profile:', error);
         return null;
       }
-    });
+    }, 'User Profiles', 'getUserProfile');
   }
 
 
@@ -842,7 +860,7 @@ return result || [];
           console.log(`✅ Conversation stored in ${tableName}`);
           return;
           
-        } catch (tableError) {
+        } catch (tableError: any) {
           console.log(`⚠️ Could not store in ${tableName}:`, tableError.message);
           continue;
         }
@@ -895,7 +913,7 @@ return result || [];
                 matches: matches
               };
             }
-          } catch (tableError) {
+          } catch (tableError: any) {
             console.log(`⚠️ ${tableName} table not accessible:`, tableError.message);
             continue;
           }
@@ -911,7 +929,7 @@ return result || [];
         console.error('❌ Error getting user matches:', error);
         return null;
       }
-    });
+    }, 'Matches', 'getUserMatches');
   }
 
   // === ANALYTICS OPERATIONS ===
@@ -999,19 +1017,66 @@ return result || [];
   // === MAPPING FUNCTIONS ===
 
   private static mapUserRecord(record: any): User {
+    // Use fields for easier access with Airtable records
+    const fields = record.fields || record;
+    
+    // Helper to attempt to parse full name if 'Users Name' exists
+    let usersName = fields['Users Name'] || (typeof record.get === 'function' ? record.get('Users Name') : undefined);
+    let parsedFirstName: string | undefined = undefined;
+    let parsedLastName: string | undefined = undefined;
+
+    if (usersName) {
+      const nameParts = String(usersName).split(' ');
+      parsedFirstName = nameParts[0];
+      if (nameParts.length > 1) {
+        parsedLastName = nameParts.slice(1).join(' ');
+      }
+    }
+
+    // Map from the actual User Profiles schema
+    const getValue = (field: string) => {
+      return fields[field] || (typeof record.get === 'function' ? record.get(field) : undefined);
+    };
+
+    // Create the base user object with required fields from type
     return {
       id: record.id,
-      email: record.get('Email'),
-      firstName: record.get('First_Name') || record.get('FirstName'),
-      lastName: record.get('Last_Name') || record.get('LastName'),
-      veteranId: record.get('Veteran_ID') || record.get('VeteranID'),
-      serviceRecord: record.get('Service_Record') ? JSON.parse(record.get('Service_Record')) : undefined,
-      subscriptionStatus: record.get('Subscription_Status') || record.get('SubscriptionStatus') || 'free',
-      preferences: record.get('Preferences') ? JSON.parse(record.get('Preferences')) : this.getDefaultPreferences(),
-      securityLevel: record.get('Security_Level') || record.get('SecurityLevel') || 'standard',
-      lastLogin: new Date(record.get('Last_Login') || record.get('LastLogin') || Date.now()),
-      createdAt: new Date(record.get('Created_At') || record.get('CreatedAt') || Date.now()),
-      updatedAt: new Date(record.get('Updated_At') || record.get('UpdatedAt') || Date.now())
+      // Prioritize 'Contact Email' as in actual schema
+      email: getValue('Contact Email') || getValue('Email') || '',
+      // Use parsed name from 'Users Name' as in actual schema
+      firstName: parsedFirstName || getValue('First_Name') || getValue('FirstName') || '',
+      lastName: parsedLastName || getValue('Last_Name') || getValue('LastName') || '',
+      
+      // Veteran-specific fields from schema
+      veteranId: getValue('Veteran Owner Name(s)') || getValue('Veteran_ID') || getValue('VeteranID'),
+      serviceRecord: {
+        branch: (getValue('Military Branch') as any) || 'army',
+        rank: getValue('Veteran Status') || '',
+        serviceYears: 0, // Not directly in schema
+        dischargeType: '',
+        disabilities: getValue('Disability rating % (VA)') ? [`${getValue('Disability rating % (VA)')}%`] : [],
+        securityClearance: ''
+      },
+      
+      // Additional fields from schema
+      securityLevel: (getValue('Security_Level') || getValue('SecurityLevel') || 'standard') as 'standard' | 'enhanced',
+      lastLogin: new Date(getValue('Last_Login') || getValue('LastLogin') || Date.now()),
+      
+      // Subscription status from schema
+      subscriptionStatus: (getValue('Subscription_Status') || 'free') as 'free' | 'paid' | 'premium',
+      
+      // AI preferences from schema
+      preferences: getValue('ai_preferences')
+        ? (typeof getValue('ai_preferences') === 'string' 
+           ? JSON.parse(getValue('ai_preferences')) 
+           : getValue('ai_preferences'))
+        : this.getDefaultPreferences(),
+      
+      // Date fields from schema
+      createdAt: new Date(getValue('CreatedDate') || getValue('Created_At') || Date.now()),
+      updatedAt: new Date(getValue('Submission Timestamp') || getValue('Updated_At') || Date.now())
+      
+      // Removed businessInfo and other extra fields that don't match the User type
     };
   }
 
@@ -1046,33 +1111,89 @@ return result || [];
   }
 
   private static mapOpportunityRecord(record: any): Opportunity {
+    // Use fields for easier access with Airtable records
+    const fields = record.fields || record;
+    
+    // Helper function to get values from either record.get() or record.fields
+    const getValue = (field: string) => {
+      return fields[field] || (typeof record.get === 'function' ? record.get(field) : undefined);
+    };
+    
+    // Map based on actual Opportunities table schema
     return {
       id: record.id,
-      title: record.get('Title'),
-      description: record.get('Description'),
-      type: record.get('Type'),
-      amount: record.get('Amount'),
-      deadline: new Date(record.get('Deadline')),
-      eligibility: record.get('Eligibility') ? JSON.parse(record.get('Eligibility')) : {},
-      applicationUrl: record.get('Application_URL') || record.get('ApplicationURL'),
-      status: record.get('Status'),
-      tags: record.get('Tags') ? JSON.parse(record.get('Tags')) : [],
-      createdAt: new Date(record.get('Created_At') || record.get('CreatedAt')),
-      updatedAt: new Date(record.get('Updated_At') || record.get('UpdatedAt'))
+      title: getValue('title') || '',
+      description: getValue('description') || getValue('aisummary') || '',
+      type: (getValue('Funding_Type') || getValue('opportunity_type') || 'grant') as 'grant' | 'loan' | 'contract' | 'benefit' | 'program',
+      amount: getValue('totalfunding') ? parseFloat(String(getValue('totalfunding'))) : 
+              (getValue('awardceiling') ? parseFloat(String(getValue('awardceiling'))) : 0),
+      
+      // Fix: Ensure deadline is always a Date (not undefined)
+      deadline: getValue('deadline') ? new Date(getValue('deadline')) : 
+               (getValue('Date') ? new Date(getValue('Date')) : new Date()),
+      
+      // Build eligibility object from schema fields to match the EligibilityRequirements type
+      eligibility: {
+        veteranStatus: true, // Default for veteran platform
+        serviceConnected: getValue('Veteran_Benefit') === 'Service-Connected',
+        disabilityRating: getValue('Disability rating % (VA)') ? 
+          parseInt(String(getValue('Disability rating % (VA)'))) : undefined,
+        incomeLimit: undefined,
+        location: getValue('CountyBorough') ? [String(getValue('CountyBorough'))] : [],
+        businessType: getValue('Business_Size_Requirements') ? 
+          [String(getValue('Business_Size_Requirements'))] : [],
+        other: [
+          getValue('eligibility'),
+          getValue('Required_Docs'),
+          getValue('DUNUEI Number') ? `DUNS/UEI Required: ${getValue('DUNUEI Number')}` : '',
+        ].filter(Boolean)
+      },
+      
+      applicationUrl: getValue('Resource_Link') || getValue('PDFlink') || getValue('originurl') || '',
+      status: (getValue('status') || getValue('Deadline Status') || 'open') as 'open' | 'closed' | 'upcoming',
+      
+      // Convert keywords to tags array
+      tags: getValue('keywords') ? 
+        (typeof getValue('keywords') === 'string' ? 
+          String(getValue('keywords')).split(',').map(kw => kw.trim()) : 
+          (Array.isArray(getValue('keywords')) ? getValue('keywords') : [])
+        ) : [],
+      
+      // Date fields
+      createdAt: getValue('posteddate') ? 
+        new Date(getValue('posteddate')) : 
+        (getValue('Date') ? new Date(getValue('Date')) : new Date()),
+      updatedAt: new Date() // Default to current time if not available
     };
   }
 
   private static mapResourceRecord(record: any): Resource {
+    // Use fields for easier access with Airtable records
+    const fields = record.fields || record;
+    
+    // Helper function to get values from either record.get() or record.fields
+    const getValue = (field: string) => {
+      return fields[field] || (typeof record.get === 'function' ? record.get(field) : undefined);
+    };
+    
+    // Map based on actual Resources table schema
     return {
       id: record.id,
-      title: record.get('Title'),
-      description: record.get('Description'),
-      category: record.get('Category'),
-      url: record.get('URL'),
-      contactInfo: record.get('Contact_Info') ? JSON.parse(record.get('Contact_Info')) : undefined,
-      availability: record.get('Availability'),
-      cost: 'free',
-      tags: record.get('Tags') ? JSON.parse(record.get('Tags')) : []
+      title: getValue('Resource_Name') || '',
+      description: getValue('Full_Description') || getValue('aisummary') || getValue('snippet') || '',
+      category: (getValue('Resource_Type') || 'benefits') as 'healthcare' | 'education' | 'housing' | 'employment' | 'benefits' | 'legal',
+      url: getValue('Forms_Links') || '',
+      contactInfo: { // No specific contact fields in schema, use empty object
+        phone: '',
+        email: '',
+        address: '',
+        hours: ''
+      },
+      availability: getValue('Update_Cadence') || 'always',
+      cost: 'free' as 'free' | 'paid' | 'sliding-scale', // Default to free for veteran resources
+      tags: []
+      
+      // Removed additional fields that don't match Resource type
     };
   }
 
@@ -1228,17 +1349,16 @@ return result || [];
         try {
           await base(tableName).select({ maxRecords: 1 }).firstPage();
           foundTables.push(tableName);
-          console.log(`✅ Found table: '${tableName}'`);
-        } catch (error) {
-          // Table doesn't exist, continue
+          console.log(`✅ ${tableName}: ACCESSIBLE`);
+        } catch (error: any) {
+          console.log(`❌ ${tableName}: TABLE NOT FOUND`);
         }
       }
 
-      console.log(`📋 Discovered ${foundTables.length} tables:`, foundTables);
       return foundTables;
     } catch (error) {
-      console.error('Error discovering tables:', error);
+      console.error('❌ Error listing all tables:', error);
       return [];
     }
   }
-} 
+}

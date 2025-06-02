@@ -246,11 +246,12 @@ export class RateLimiter {
    */
   static cleanup(): void {
     const now = Date.now();
-    for (const [key, value] of this.requests.entries()) {
+    // Convert Map entries to array first to avoid ES5 compatibility issues
+    Array.from(this.requests.entries()).forEach(([key, value]) => {
       if (now > value.resetTime) {
         this.requests.delete(key);
       }
-    }
+    });
   }
 }
 
@@ -360,10 +361,11 @@ export class SessionManager {
    */
   static cleanupSessions(timeoutMs: number = 30 * 60 * 1000): void {
     const now = Date.now();
-    for (const [sessionId, session] of this.sessions.entries()) {
+    // Convert Map entries to array first to avoid ES5 compatibility issues
+    Array.from(this.sessions.entries()).forEach(([sessionId, session]) => {
       if (now - session.lastActivity > timeoutMs) {
         this.sessions.delete(sessionId);
       }
-    }
+    });
   }
-} 
+}
