@@ -720,6 +720,7 @@ return result || [];
 
     }, 'Resources', 'search');
 
+    console.log('<<<< VERCEL DEBUG: FORCING REBUILD - CHECKPOINT ALPHA >>>>');
     let numResources = 0;
     if (result !== null) {
       numResources = result.length;
