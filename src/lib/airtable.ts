@@ -1,5 +1,6 @@
 // AirtableService - Database integration for VADIY
 // Last updated: 2025-02-01 - Fixed TypeScript error with Resource cost field
+// Force rebuild to clear Vercel cache
 import Airtable from 'airtable';
 import { SecurityManager, PIIProtector, AuditLogger } from './security';
 import type { 
@@ -719,7 +720,15 @@ return result || [];
 
     }, 'Resources', 'search');
 
-    console.log(`🔍 Final searchResources result: ${result.length} resources`);
+    let numResources = 0;
+    if (result !== null) {
+      numResources = result.length;
+    }
+    console.log(`🔍 Final searchResources result: ${numResources} resources`);
+
+    if (result === null) {
+      return [];
+    }
     return result;
   }
 

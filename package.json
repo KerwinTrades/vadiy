@@ -54,10 +54,10 @@
   },
   "devDependencies": {
     "@types/crypto-js": "^4.2.0",
-    "@types/node": "22.15.29",
+    "@types/node": "^22.15.29",
     "@types/react": "19.1.6",
     "eslint": "^8.0.0",
-    "eslint-config-next": "^14.0.0",
+    "eslint-config-next": "^15.3.3",
     "typescript": "5.8.3"
   }
 }
