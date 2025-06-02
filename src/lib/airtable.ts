@@ -119,10 +119,11 @@ const TABLE_VARIATIONS = {
     process.env.AIRTABLE_CHAT_TRANSCRIPTS_TABLE,
     'ChatTranscripts' // Exact match from user schema
   ].filter(Boolean),
-  veteranChat: [
-    process.env.AIRTABLE_VETERAN_CHAT_TABLE,
-    'VeteranChat' // Exact match from user schema
-  ].filter(Boolean)
+  // Commented out because this table doesn't exist in the Airtable base
+  // veteranChat: [
+  //   process.env.AIRTABLE_VETERAN_CHAT_TABLE,
+  //   'VeteranChat' // Exact match from user schema
+  // ].filter(Boolean)
 };
 
 // Auto-detect and initialize tables
