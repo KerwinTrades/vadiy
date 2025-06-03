@@ -1,6 +1,6 @@
 {
   "name": "veteran-chat-assistant",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Secure AI-powered chat assistant for veteran services with HIPAA-compliant data handling",
   "main": "index.js",
   "scripts": {
