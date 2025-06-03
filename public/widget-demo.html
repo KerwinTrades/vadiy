@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Veteran Chat Widget Demo v1.0.2</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            color: #333;
+        }
+        
+        header {
+            background-color: #1E3A8A;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+        
+        nav {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        nav ul {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+        }
+        
+        nav a {
+            color: #1E3A8A;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .demo-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        @media (max-width: 768px) {
+            .demo-section {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .code-block {
+            background-color: #f5f5f5;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        
+        #veteran-chat-container {
+            width: 100%;
+            height: 600px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Veteran Chat Widget Demo v1.0.2</h1>
+        <p>Test how the chat widget looks and behaves with enhanced cross-frame communication</p>
+    </header>
+    
+    <nav>
+        <ul>
+            <li><a href="#">Home</a></li>
+            <li><a href="#">Services</a></li>
+            <li><a href="#">Benefits</a></li>
+            <li><a href="#">Resources</a></li>
+            <li><a href="#">Contact</a></li>
+        </ul>
+    </nav>
+    
+    <main>
+        <h2>Widget Integration Demo</h2>
+        <p>
+            This page demonstrates how the Veteran Chat widget looks and functions when embedded in a website.
+            This mimics how it will appear when embedded in your Softr site, featuring enhanced cross-frame
+            communication, dynamic resizing, and improved error handling.
+        </p>
+        
+        <div class="feature-controls" style="margin-bottom: 20px; padding: 15px; background: #f0f4ff; border-radius: 8px;">
+            <h3>Test Widget API</h3>
+            <button onclick="window.VeteranChat.openChat()" style="background: #1E3A8A; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">Focus Chat</button>
+            <button onclick="testResize()" style="background: #1E3A8A; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">Test Container Size</button>
+            <button onclick="toggleDebug()" style="background: #1E3A8A; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Toggle Debug Mode</button>
+            
+            <div id="debug-output" style="margin-top: 10px; max-height: 150px; overflow-y: auto; padding: 10px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 4px; display: none;">
+                <p><strong>Debug Messages:</strong></p>
+                <div id="debug-messages"></div>
+            </div>
+        </div>
+        
+        <div class="demo-section">
+            <div>
+                <h3>Integration Code</h3>
+                <div class="code-block">
+                    <pre>&lt;div id="veteran-chat-container"&gt;&lt;/div&gt;
+
+&lt;script&gt;
+window.VeteranEmbedConfig = {
+    apiBaseUrl: window.location.origin,
+    height: '600px',
+    width: '100%',
+    allowFullscreen: true,
+    chatRoute: '/veteran-chat',
+    position: 'bottom-right',
+    softrSpecific: true,
+    debug: true  // Enable to see debug messages
+};
+&lt;/script&gt;
+
+&lt;script src="/softr-embed.js"&gt;&lt;/script&gt;</pre>
+                </div>
+                
+                <h3>How It Works</h3>
+                <p>
+                    The widget uses a special API route that bypasses iframe restrictions.
+                    It maintains all functionality of the chat while allowing it to be
+                    embedded directly within your site navigation.
+                </p>
+                <p>
+                    The enhanced version includes cross-frame messaging for dynamic iframe resizing, 
+                    error handling with retry options, and an improved UI with loading indicators.
+                </p>
+                
+                <h3>Enhanced Features</h3>
+                <ul>
+                    <li><strong>Cross-Frame Communication:</strong> Handles messaging between parent and iframe</li>
+                    <li><strong>Dynamic Resizing:</strong> Automatically adjusts height based on content</li>
+                    <li><strong>Error Handling:</strong> Shows meaningful errors with retry options</li>
+                    <li><strong>Loading Indicators:</strong> Provides visual feedback during loading</li>
+                    <li><strong>Softr Optimizations:</strong> Special handling for Softr page navigation</li>
+                    <li><strong>JavaScript API:</strong> Programmatic control via <code>window.VeteranChat</code></li>
+                </ul>
+            </div>
+            
+            <div>
+                <h3>Live Widget Preview</h3>
+                <div id="veteran-chat-container"></div>
+            </div>
+        </div>
+    </main>
+    
+    <script>
+        // Configuration for the enhanced widget
+        window.VeteranEmbedConfig = {
+            apiBaseUrl: window.location.origin,
+            height: '600px',
+            width: '100%',
+            allowFullscreen: true,
+            chatRoute: '/veteran-chat',
+            position: 'bottom-right',
+            softrSpecific: true,
+            debug: false  // Will be toggled by the button
+        };
+        
+        // For demonstrating debug output
+        let debugEnabled = false;
+        
+        function toggleDebug() {
+            debugEnabled = !debugEnabled;
+            const debugOutput = document.getElementById('debug-output');
+            debugOutput.style.display = debugEnabled ? 'block' : 'none';
+            
+            // Update widget config
+            window.VeteranEmbedWidget.config.debug = debugEnabled;
+            console.log(debugEnabled ? 'Debug mode enabled' : 'Debug mode disabled');
+            
+            // Override console.log to capture debug messages
+            if (debugEnabled) {
+                const originalLog = console.log;
+                console.log = function() {
+                    const args = Array.from(arguments);
+                    if (args[0] && typeof args[0] === 'string' && args[0].includes('[VeteranChat]')) {
+                        const debugMessages = document.getElementById('debug-messages');
+                        const message = document.createElement('div');
+                        message.textContent = args.join(' ');
+                        message.style.borderBottom = '1px solid #eee';
+                        message.style.padding = '4px 0';
+                        debugMessages.appendChild(message);
+                    }
+                    originalLog.apply(console, args);
+                };
+            }
+        }
+        
+        function testResize() {
+            const container = document.getElementById('veteran-chat-container');
+            const currentHeight = parseInt(container.style.height);
+            
+            if (currentHeight === 600 || isNaN(currentHeight)) {
+                container.style.height = '400px';
+                console.log('Resized container to 400px');
+            } else {
+                container.style.height = '600px';
+                console.log('Resized container to 600px');
+            }
+        }
+        
+        // Listen for messages from the iframe
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.source === 'veteran-chat') {
+                if (debugEnabled) {
+                    const debugMessages = document.getElementById('debug-messages');
+                    const message = document.createElement('div');
+                    message.textContent = `FROM IFRAME: ${JSON.stringify(event.data)}`;
+                    message.style.color = '#0066cc';
+                    message.style.borderBottom = '1px solid #eee';
+                    message.style.padding = '4px 0';
+                    debugMessages.appendChild(message);
+                }
+            }
+        });
+    </script>
+    
+    <script src="/softr-embed.js"></script>
+</body>
+</html>

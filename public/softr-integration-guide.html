@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Veteran Chat - Softr Integration Guide v1.0.2</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #1E3A8A;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        code, pre {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            overflow-x: auto;
+        }
+        .note {
+            background-color: #f0f4ff;
+            border-left: 4px solid #1E3A8A;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Veteran Chat - Softr Integration Guide v1.0.2</h1>
+    
+    <h2>Overview</h2>
+    <p>
+        This guide explains how to embed the Veteran Chat Assistant into your Softr website.
+        The integration uses a special API endpoint that bypasses iframe security restrictions and 
+        includes enhanced features like cross-frame communication, dynamic resizing, and better error handling.
+    </p>
+
+    <h2>Step 1: Add HTML Container</h2>
+    <p>First, add a container div where the chat should appear on your Softr page:</p>
+    <pre><code>&lt;div id="veteran-chat-container" style="width:100%; height:600px;"&gt;&lt;/div&gt;</code></pre>
+    
+    <h2>Step 2: Add Script</h2>
+    <p>Add the embed script to your Softr page using the Code Block element:</p>
+    <pre><code>&lt;script&gt;
+// Configuration for the Veteran Chat Widget
+window.VeteranEmbedConfig = {
+    apiBaseUrl: 'https://vadiy-msb11488t-kerwins-projects-846f2cf3.vercel.app', // Replace with your Vercel deployment URL
+    height: '600px',
+    width: '100%',
+    floatingButton: true, // Shows floating button on non-chat pages
+    allowFullscreen: true, // Allow fullscreen mode on mobile
+    chatRoute: '/veteran-chat', // Path to your chat page
+    position: 'bottom-right', // Position of floating button
+    softrSpecific: true, // Enable Softr-specific optimizations
+    debug: false // Enable for troubleshooting
+};
+&lt;/script&gt;
+
+&lt;script src="https://vadiy-msb11488t-kerwins-projects-846f2cf3.vercel.app/softr-embed.js"&gt;&lt;/script&gt;</code></pre>
+
+    <div class="note">
+        <strong>Important:</strong> The script is configured to use the Vercel deployment URL 'https://vadiy-msb11488t-kerwins-projects-846f2cf3.vercel.app'.
+    </div>
+
+    <h2>For the Chat Page (veteran-chat)</h2>
+    <p>On your veteran-chat Softr page:</p>
+    <ol>
+        <li>Add a Code Block element</li>
+        <li>Insert the container and script code above</li>
+        <li>Set the page layout to have minimal padding or use full-width sections</li>
+    </ol>
+
+    <h2>For Other Pages (Floating Chat Button)</h2>
+    <p>To add a floating chat button on other pages that redirects users to the chat page:</p>
+    <pre><code>&lt;script&gt;
+window.VeteranEmbedConfig = {
+    apiBaseUrl: 'https://vadiy-msb11488t-kerwins-projects-846f2cf3.vercel.app',
+    floatingButton: true,
+    buttonText: '💬 Chat with VA Assistant',
+    position: 'bottom-right', // Can also be 'bottom-left'
+    chatRoute: '/veteran-chat' // Path to your chat page
+};
+&lt;/script&gt;
+
+&lt;script src="https://vadiy-msb11488t-kerwins-projects-846f2cf3.vercel.app/softr-embed.js"&gt;&lt;/script&gt;</code></pre>
+
+    <h2>Advanced Features</h2>
+    <p>The embed script includes several advanced features:</p>
+    
+    <h3>1. Dynamic Resizing</h3>
+    <p>The iframe now automatically adjusts its height based on content, eliminating scrollbars in most cases.</p>
+    
+    <h3>2. Direct API Access</h3>
+    <p>You can control the chat programmatically:</p>
+    <pre><code>&lt;button onclick="window.VeteranChat.openChat()"&gt;Open Chat&lt;/button&gt;</code></pre>
+    <p>Available methods:</p>
+    <ul>
+        <li><code>window.VeteranChat.openChat()</code> - Navigates to the chat page or focuses the chat if already there</li>
+        <li><code>window.VeteranChat.initChat(config)</code> - Initializes the chat with custom configuration</li>
+    </ul>
+    
+    <h3>3. Softr Single-Page App Support</h3>
+    <p>The script automatically handles Softr's page navigation events, maintaining the chat state when users move between pages.</p>
+    
+    <h3>4. Error Handling</h3>
+    <p>The chat now shows a loading indicator and proper error messages with retry options if loading fails.</p>
+    
+    <h2>Troubleshooting</h2>
+    <p>If the chat doesn't appear:</p>
+    <ul>
+        <li>Ensure your Vercel deployment URL is correct</li>
+        <li>Check for any content blockers or security settings in your browser</li>
+        <li>Verify that the container ID matches the selector in the configuration</li>
+        <li>Enable debug mode to see detailed logs: <code>debug: true</code> in your configuration</li>
+        <li>Open your browser console for any error messages</li>
+    </ul>
+
+    <h2>Configuration Options</h2>
+    <table border="1" style="border-collapse: collapse; width: 100%;">
+        <tr>
+            <th style="padding: 8px; text-align: left; background-color: #f0f4ff;">Option</th>
+            <th style="padding: 8px; text-align: left; background-color: #f0f4ff;">Default</th>
+            <th style="padding: 8px; text-align: left; background-color: #f0f4ff;">Description</th>
+        </tr>
+        <tr>
+            <td style="padding: 8px;"><code>apiBaseUrl</code></td>
+            <td style="padding: 8px;"><code>'https://vadiy-vercel.vercel.app'</code></td>
+            <td style="padding: 8px;">Base URL of your Vercel deployment</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px;"><code>containerSelector</code></td>
+            <td style="padding: 8px;"><code>'#veteran-chat-container'</code></td>
+            <td style="padding: 8px;">CSS selector for the container element</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px;"><code>height</code></td>
+            <td style="padding: 8px;"><code>'600px'</code></td>
+            <td style="padding: 8px;">Initial height of the chat container</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px;"><code>width</code></td>
+            <td style="padding: 8px;"><code>'100%'</code></td>
+            <td style="padding: 8px;">Width of the chat container</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px;"><code>floatingButton</code></td>
+            <td style="padding: 8px;"><code>false</code></td>
+            <td style="padding: 8px;">Whether to show a floating button on non-chat pages</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px;"><code>autoOpen</code></td>
+            <td style="padding: 8px;"><code>true</code></td>
+            <td style="padding: 8px;">Open chat automatically on the veteran-chat page</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px;"><code>buttonText</code></td>
+            <td style="padding: 8px;"><code>'💬 Chat with VA Assistant'</code></td>
+            <td style="padding: 8px;">Text to display on the floating button</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px;"><code>allowFullscreen</code></td>
+            <td style="padding: 8px;"><code>true</code></td>
+            <td style="padding: 8px;">Allow the chat to go fullscreen on mobile</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px;"><code>chatRoute</code></td>
+            <td style="padding: 8px;"><code>'/veteran-chat'</code></td>
+            <td style="padding: 8px;">The route where the full chat is located</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px;"><code>position</code></td>
+            <td style="padding: 8px;"><code>'bottom-right'</code></td>
+            <td style="padding: 8px;">Position of the floating button ('bottom-right' or 'bottom-left')</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px;"><code>softrSpecific</code></td>
+            <td style="padding: 8px;"><code>true</code></td>
+            <td style="padding: 8px;">Enable Softr-specific optimizations</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px;"><code>debug</code></td>
+            <td style="padding: 8px;"><code>false</code></td>
+            <td style="padding: 8px;">Enable debug logging</td>
+        </tr>
+    </table>
+    
+    <div class="note" style="margin-top: 30px;">
+        <strong>Need Help?</strong><br>
+        For additional assistance with the Veteran Chat integration, please contact our support team.
+    </div>
+</body>
+</html>
